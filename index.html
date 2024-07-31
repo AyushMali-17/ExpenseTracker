@@ -3,8 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Futuristic Expense Tracker v1</title>
+    <title>Futuristic Expense Tracker v2</title>
     <style>
+        @keyframes neonFlicker {
+            0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+                text-shadow: 0 0 5px #0f0, 0 0 10px #0f0, 0 0 20px #0f0, 0 0 40px #0f0;
+            }
+            20%, 24%, 55% {
+                text-shadow: none;
+            }
+        }
         body {
             font-family: 'Courier New', monospace;
             background-color: #000;
@@ -15,9 +23,12 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 255, 0, 0.1) 0%, transparent 30%);
         }
         .container {
-            background-color: rgba(0, 255, 0, 0.1);
+            background-color: rgba(0, 20, 0, 0.8);
             border: 2px solid #0f0;
             border-radius: 15px;
             padding: 20px;
@@ -30,6 +41,7 @@
             text-transform: uppercase;
             letter-spacing: 3px;
             margin-bottom: 30px;
+            animation: neonFlicker 1.5s infinite alternate;
         }
         .form-group {
             margin-bottom: 20px;
@@ -39,7 +51,8 @@
             margin-bottom: 5px;
         }
         input[type="text"],
-        input[type="number"] {
+        input[type="number"],
+        select {
             width: 100%;
             padding: 10px;
             border: 1px solid #0f0;
@@ -79,6 +92,28 @@
             font-size: 1.2em;
             margin-top: 20px;
         }
+        .delete-btn {
+            background-color: #f00;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        #chart {
+            margin-top: 30px;
+            border: 1px solid #0f0;
+            height: 200px;
+            display: flex;
+            align-items: flex-end;
+            padding: 10px;
+        }
+        .bar {
+            flex-grow: 1;
+            background-color: #0f0;
+            margin: 0 2px;
+            transition: height 0.3s;
+        }
     </style>
 </head>
 <body>
@@ -93,16 +128,28 @@
                 <label for="expenseAmount">Amount:</label>
                 <input type="number" id="expenseAmount" required>
             </div>
+            <div class="form-group">
+                <label for="expenseCategory">Category:</label>
+                <select id="expenseCategory" required>
+                    <option value="food">Food</option>
+                    <option value="transport">Transport</option>
+                    <option value="entertainment">Entertainment</option>
+                    <option value="bills">Bills</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
             <button type="submit">Add Expense</button>
         </form>
         <div id="expenseList"></div>
         <div class="total">Total: $<span id="totalAmount">0</span></div>
+        <div id="chart"></div>
     </div>
 
     <script>
         const expenseForm = document.getElementById('expenseForm');
         const expenseList = document.getElementById('expenseList');
         const totalAmount = document.getElementById('totalAmount');
+        const chart = document.getElementById('chart');
         let expenses = [];
 
         expenseForm.addEventListener('submit', function(e) {
@@ -110,12 +157,14 @@
             
             const name = document.getElementById('expenseName').value;
             const amount = parseFloat(document.getElementById('expenseAmount').value);
+            const category = document.getElementById('expenseCategory').value;
 
-            if (name && amount) {
-                const expense = { name, amount };
+            if (name && amount && category) {
+                const expense = { name, amount, category };
                 expenses.push(expense);
                 updateExpenseList();
                 updateTotal();
+                updateChart();
                 expenseForm.reset();
             }
         });
@@ -126,8 +175,9 @@
                 const expenseItem = document.createElement('div');
                 expenseItem.classList.add('expense-item');
                 expenseItem.innerHTML = `
-                    <span>${expense.name}</span>
+                    <span>${expense.name} (${expense.category})</span>
                     <span>$${expense.amount.toFixed(2)}</span>
+                    <button class="delete-btn" onclick="deleteExpense(${index})">Delete</button>
                 `;
                 expenseList.appendChild(expenseItem);
             });
@@ -136,6 +186,32 @@
         function updateTotal() {
             const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
             totalAmount.textContent = total.toFixed(2);
+        }
+
+        function deleteExpense(index) {
+            expenses.splice(index, 1);
+            updateExpenseList();
+            updateTotal();
+            updateChart();
+        }
+
+        function updateChart() {
+            chart.innerHTML = '';
+            const categories = ['food', 'transport', 'entertainment', 'bills', 'other'];
+            const categoryTotals = categories.map(category => 
+                expenses.filter(e => e.category === category)
+                        .reduce((sum, e) => sum + e.amount, 0)
+            );
+            const maxTotal = Math.max(...categoryTotals);
+            
+            categories.forEach((category, index) => {
+                const bar = document.createElement('div');
+                bar.classList.add('bar');
+                const height = (categoryTotals[index] / maxTotal) * 100;
+                bar.style.height = `${height}%`;
+                bar.title = `${category}: $${categoryTotals[index].toFixed(2)}`;
+                chart.appendChild(bar);
+            });
         }
     </script>
 </body>
