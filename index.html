@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Futuristic Expense Tracker v2</title>
+    <title>Futuristic Expense Tracker v3</title>
     <style>
         @keyframes neonFlicker {
             0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
@@ -12,6 +12,10 @@
             20%, 24%, 55% {
                 text-shadow: none;
             }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         body {
             font-family: 'Courier New', monospace;
@@ -32,11 +36,11 @@
             border: 2px solid #0f0;
             border-radius: 15px;
             padding: 20px;
-            max-width: 600px;
+            max-width: 800px;
             width: 100%;
             box-shadow: 0 0 20px #0f0;
         }
-        h1 {
+        h1, h2 {
             text-align: center;
             text-transform: uppercase;
             letter-spacing: 3px;
@@ -52,6 +56,7 @@
         }
         input[type="text"],
         input[type="number"],
+        input[type="date"],
         select {
             width: 100%;
             padding: 10px;
@@ -86,6 +91,7 @@
             margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
+            animation: fadeIn 0.5s;
         }
         .total {
             text-align: right;
@@ -114,6 +120,21 @@
             margin: 0 2px;
             transition: height 0.3s;
         }
+        #summary {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .summary-item {
+            text-align: center;
+            flex: 1;
+        }
+        #robotMessage {
+            margin-top: 20px;
+            font-style: italic;
+            text-align: center;
+            opacity: 0.7;
+        }
     </style>
 </head>
 <body>
@@ -138,11 +159,18 @@
                     <option value="other">Other</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label for="expenseDate">Date:</label>
+                <input type="date" id="expenseDate" required>
+            </div>
             <button type="submit">Add Expense</button>
         </form>
         <div id="expenseList"></div>
         <div class="total">Total: $<span id="totalAmount">0</span></div>
         <div id="chart"></div>
+        <h2>Expense Summary</h2>
+        <div id="summary"></div>
+        <div id="robotMessage"></div>
     </div>
 
     <script>
@@ -150,24 +178,9 @@
         const expenseList = document.getElementById('expenseList');
         const totalAmount = document.getElementById('totalAmount');
         const chart = document.getElementById('chart');
-        let expenses = [];
-
-        expenseForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const name = document.getElementById('expenseName').value;
-            const amount = parseFloat(document.getElementById('expenseAmount').value);
-            const category = document.getElementById('expenseCategory').value;
-
-            if (name && amount && category) {
-                const expense = { name, amount, category };
-                expenses.push(expense);
-                updateExpenseList();
-                updateTotal();
-                updateChart();
-                expenseForm.reset();
-            }
-        });
+        const summary = document.getElementById('summary');
+        const robotMessage = document.getElementById('robotMessage');
+        let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
 
         function updateExpenseList() {
             expenseList.innerHTML = '';
@@ -175,9 +188,9 @@
                 const expenseItem = document.createElement('div');
                 expenseItem.classList.add('expense-item');
                 expenseItem.innerHTML = `
-                    <span>${expense.name} (${expense.category})</span>
-                    <span>$${expense.amount.toFixed(2)}</span>
-                    <button class="delete-btn" onclick="deleteExpense(${index})">Delete</button>
+                    <span>${expense.name} (${expense.category}) - ${expense.date}</span>
+                    <span>$${expense.amount.toFixed(2)}
+                    <button class="delete-btn" onclick="deleteExpense(${index})">Delete</button></span>
                 `;
                 expenseList.appendChild(expenseItem);
             });
@@ -193,6 +206,8 @@
             updateExpenseList();
             updateTotal();
             updateChart();
+            updateSummary();
+            saveExpenses();
         }
 
         function updateChart() {
@@ -207,12 +222,71 @@
             categories.forEach((category, index) => {
                 const bar = document.createElement('div');
                 bar.classList.add('bar');
-                const height = (categoryTotals[index] / maxTotal) * 100;
+                const height = maxTotal > 0 ? (categoryTotals[index] / maxTotal) * 100 : 0;
                 bar.style.height = `${height}%`;
                 bar.title = `${category}: $${categoryTotals[index].toFixed(2)}`;
                 chart.appendChild(bar);
             });
         }
+
+        function updateSummary() {
+            summary.innerHTML = '';
+            const categories = ['food', 'transport', 'entertainment', 'bills', 'other'];
+            categories.forEach(category => {
+                const categoryTotal = expenses.filter(e => e.category === category)
+                                              .reduce((sum, e) => sum + e.amount, 0);
+                const summaryItem = document.createElement('div');
+                summaryItem.classList.add('summary-item');
+                summaryItem.innerHTML = `
+                    <h3>${category}</h3>
+                    <p>$${categoryTotal.toFixed(2)}</p>
+                `;
+                summary.appendChild(summaryItem);
+            });
+        }
+
+        function saveExpenses() {
+            localStorage.setItem('expenses', JSON.stringify(expenses));
+        }
+
+        function generateRobotMessage() {
+            const messages = [
+                "Beep boop! Your finances are looking stellar!",
+                "Initiating money-saving protocols...",
+                "Warning: Excessive spending detected in the entertainment sector!",
+                "Expense data successfully computed. Well done, human!",
+                "Remember: A credit saved is a credit earned!"
+            ];
+            const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+            robotMessage.textContent = randomMessage;
+        }
+
+        expenseForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('expenseName').value;
+            const amount = parseFloat(document.getElementById('expenseAmount').value);
+            const category = document.getElementById('expenseCategory').value;
+            const date = document.getElementById('expenseDate').value;
+
+            if (name && amount && category && date) {
+                const expense = { name, amount, category, date };
+                expenses.push(expense);
+                updateExpenseList();
+                updateTotal();
+                updateChart();
+                updateSummary();
+                saveExpenses();
+                generateRobotMessage();
+                expenseForm.reset();
+            }
+        });
+
+        updateExpenseList();
+        updateTotal();
+        updateChart();
+        updateSummary();
+        generateRobotMessage();
     </script>
 </body>
 </html>
