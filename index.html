@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Futuristic Expense Tracker v4</title>
+    <title>Futuristic Expense Tracker v5</title>
     <style>
         @keyframes neonFlicker {
             0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
@@ -20,6 +20,10 @@
         @keyframes slideIn {
             from { transform: translateX(-100%); }
             to { transform: translateX(0); }
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
         body {
             font-family: 'Courier New', monospace;
@@ -172,6 +176,41 @@
             text-align: center;
             font-weight: bold;
         }
+        #loader {
+            border: 5px solid #0f0;
+            border-top: 5px solid #000;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: rotate 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        #filterOptions {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+        #filterOptions select {
+            width: 48%;
+        }
+        #exportBtn {
+            margin-top: 20px;
+            width: 100%;
+        }
+        #robotAvatar {
+            width: 50px;
+            height: 50px;
+            background-color: #0f0;
+            border-radius: 50%;
+            margin: 0 auto 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #000;
+        }
     </style>
 </head>
 <body>
@@ -207,55 +246,179 @@
             <button onclick="setBudget()">Set Budget</button>
         </div>
         <div id="budgetStatus"></div>
+        <div id="filterOptions">
+            <select id="categoryFilter">
+                <option value="all">All Categories</option>
+                <option value="food">Food</option>
+                <option value="transport">Transport</option>
+                <option value="entertainment">Entertainment</option>
+                <option value="bills">Bills</option>
+                <option value="other">Other</option>
+            </select>
+            <select id="dateFilter">
+                <option value="all">All Time</option>
+                <option value="thisMonth">This Month</option>
+                <option value="lastMonth">Last Month</option>
+                <option value="thisYear">This Year</option>
+                <option value="lastYear">Last Year</option>
+            </select>
+        </div>
         <div id="expenseList"></div>
-        <div class="total">Total: $<span id="totalAmount">0</span></div>
+        <div class="total">Total: $<span id="totalAmount">0.00</span></div>
         <div id="chart"></div>
-        <h2>Expense Summary</h2>
         <div id="summary"></div>
         <div id="robotMessage"></div>
+        <button id="exportBtn" onclick="exportData()">Export Data</button>
+        <div id="loader"></div>
+        <div id="robotAvatar">🤖</div>
     </div>
-
     <script>
-        const expenseForm = document.getElementById('expenseForm');
-        const expenseList = document.getElementById('expenseList');
-        const totalAmount = document.getElementById('totalAmount');
-        const chart = document.getElementById('chart');
-        const summary = document.getElementById('summary');
-        const robotMessage = document.getElementById('robotMessage');
-        const budgetStatus = document.getElementById('budgetStatus');
-        let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
-        let budget = parseFloat(localStorage.getItem('budget')) || 0;
+        let expenses = [];
+        let budget = 0;
+        let totalExpenses = 0;
 
-        function updateExpenseList() {
+        document.getElementById('expenseForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            addExpense();
+        });
+
+        document.getElementById('categoryFilter').addEventListener('change', filterExpenses);
+        document.getElementById('dateFilter').addEventListener('change', filterExpenses);
+
+        function addExpense() {
+            const name = document.getElementById('expenseName').value;
+            const amount = parseFloat(document.getElementById('expenseAmount').value);
+            const category = document.getElementById('expenseCategory').value;
+            const date = document.getElementById('expenseDate').value;
+
+            const expense = { name, amount, category, date };
+            expenses.push(expense);
+            updateExpenses();
+            document.getElementById('expenseForm').reset();
+        }
+
+        function updateExpenses() {
+            filterExpenses();
+            updateTotal();
+            updateChart();
+            updateSummary();
+            updateBudgetStatus();
+        }
+
+        function filterExpenses() {
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            const dateFilter = document.getElementById('dateFilter').value;
+            const filteredExpenses = expenses.filter(expense => {
+                const matchesCategory = categoryFilter === 'all' || expense.category === categoryFilter;
+                const matchesDate = dateFilter === 'all' || matchesDateFilter(expense.date, dateFilter);
+                return matchesCategory && matchesDate;
+            });
+
+            renderExpenses(filteredExpenses);
+        }
+
+        function matchesDateFilter(date, filter) {
+            const expenseDate = new Date(date);
+            const now = new Date();
+            const thisMonth = now.getMonth();
+            const thisYear = now.getFullYear();
+            const lastMonth = new Date(thisYear, thisMonth - 1, 1);
+            const lastYear = new Date(thisYear - 1, 0, 1);
+
+            switch (filter) {
+                case 'thisMonth':
+                    return expenseDate.getMonth() === thisMonth && expenseDate.getFullYear() === thisYear;
+                case 'lastMonth':
+                    return expenseDate.getMonth() === lastMonth.getMonth() && expenseDate.getFullYear() === lastMonth.getFullYear();
+                case 'thisYear':
+                    return expenseDate.getFullYear() === thisYear;
+                case 'lastYear':
+                    return expenseDate.getFullYear() === lastYear.getFullYear();
+                default:
+                    return true;
+            }
+        }
+
+        function renderExpenses(expenses) {
+            const expenseList = document.getElementById('expenseList');
             expenseList.innerHTML = '';
             expenses.forEach((expense, index) => {
                 const expenseItem = document.createElement('div');
-                expenseItem.classList.add('expense-item');
+                expenseItem.className = 'expense-item';
                 expenseItem.innerHTML = `
-                    <span>${expense.name} (${expense.category}) - ${expense.date}</span>
-                    <span>
-                        $${expense.amount.toFixed(2)}
-                        <button class="edit-btn" onclick="editExpense(${index})">Edit</button>
-                        <button class="delete-btn" onclick="deleteExpense(${index})">Delete</button>
-                    </span>
+                    <span>${expense.name}</span>
+                    <span>$${expense.amount.toFixed(2)}</span>
+                    <span>${expense.category}</span>
+                    <span>${expense.date}</span>
+                    <button class="edit-btn" onclick="editExpense(${index})">Edit</button>
+                    <button class="delete-btn" onclick="deleteExpense(${index})">Delete</button>
                 `;
                 expenseList.appendChild(expenseItem);
             });
         }
 
         function updateTotal() {
-            const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-            totalAmount.textContent = total.toFixed(2);
-            updateBudgetStatus(total);
+            totalExpenses = expenses.reduce((total, expense) => total + expense.amount, 0);
+            document.getElementById('totalAmount').textContent = totalExpenses.toFixed(2);
+        }
+
+        function setBudget() {
+            budget = parseFloat(document.getElementById('budgetAmount').value);
+            updateBudgetStatus();
+        }
+
+        function updateBudgetStatus() {
+            const budgetStatus = document.getElementById('budgetStatus');
+            if (budget > 0) {
+                budgetStatus.textContent = `Remaining Budget: $${(budget - totalExpenses).toFixed(2)}`;
+                budgetStatus.style.color = (budget - totalExpenses) >= 0 ? '#0f0' : '#f00';
+            } else {
+                budgetStatus.textContent = '';
+            }
+        }
+
+        function updateChart() {
+            const chart = document.getElementById('chart');
+            chart.innerHTML = '';
+            const categories = ['food', 'transport', 'entertainment', 'bills', 'other'];
+            const categoryTotals = categories.map(category => {
+                return expenses
+                    .filter(expense => expense.category === category)
+                    .reduce((total, expense) => total + expense.amount, 0);
+            });
+
+            const maxAmount = Math.max(...categoryTotals);
+
+            categoryTotals.forEach((total, index) => {
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.height = `${(total / maxAmount) * 100}%`;
+                bar.dataset.category = categories[index];
+                chart.appendChild(bar);
+            });
+        }
+
+        function updateSummary() {
+            const summary = document.getElementById('summary');
+            summary.innerHTML = '';
+            const categories = ['food', 'transport', 'entertainment', 'bills', 'other'];
+            categories.forEach(category => {
+                const total = expenses
+                    .filter(expense => expense.category === category)
+                    .reduce((sum, expense) => sum + expense.amount, 0);
+                const summaryItem = document.createElement('div');
+                summaryItem.className = 'summary-item';
+                summaryItem.innerHTML = `
+                    <h3>${category}</h3>
+                    <p>$${total.toFixed(2)}</p>
+                `;
+                summary.appendChild(summaryItem);
+            });
         }
 
         function deleteExpense(index) {
             expenses.splice(index, 1);
-            updateExpenseList();
-            updateTotal();
-            updateChart();
-            updateSummary();
-            saveExpenses();
+            updateExpenses();
         }
 
         function editExpense(index) {
@@ -264,118 +427,18 @@
             document.getElementById('expenseAmount').value = expense.amount;
             document.getElementById('expenseCategory').value = expense.category;
             document.getElementById('expenseDate').value = expense.date;
-            expenses.splice(index, 1);
-            updateExpenseList();
-            updateTotal();
-            updateChart();
-            updateSummary();
-            saveExpenses();
+            deleteExpense(index);
         }
 
-        function updateChart() {
-            chart.innerHTML = '';
-            const categories = ['food', 'transport', 'entertainment', 'bills', 'other'];
-            const categoryTotals = categories.map(category => 
-                expenses.filter(e => e.category === category)
-                        .reduce((sum, e) => sum + e.amount, 0)
-            );
-            const maxTotal = Math.max(...categoryTotals);
-            
-            categories.forEach((category, index) => {
-                const bar = document.createElement('div');
-                bar.classList.add('bar');
-                const height = maxTotal > 0 ? (categoryTotals[index] / maxTotal) * 100 : 0;
-                bar.style.height = `${height}%`;
-                bar.setAttribute('data-category', category);
-                bar.title = `${category}: $${categoryTotals[index].toFixed(2)}`;
-                chart.appendChild(bar);
-            });
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(expenses));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "expenses.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
         }
-
-        function updateSummary() {
-            summary.innerHTML = '';
-            const categories = ['food', 'transport', 'entertainment', 'bills', 'other'];
-            categories.forEach(category => {
-                const categoryTotal = expenses.filter(e => e.category === category)
-                                              .reduce((sum, e) => sum + e.amount, 0);
-                const summaryItem = document.createElement('div');
-                summaryItem.classList.add('summary-item');
-                summaryItem.innerHTML = `
-                    <h3>${category}</h3>
-                    <p>$${categoryTotal.toFixed(2)}</p>
-                `;
-                summary.appendChild(summaryItem);
-            });
-        }
-
-        function saveExpenses() {
-            localStorage.setItem('expenses', JSON.stringify(expenses));
-        }
-
-        function generateRobotMessage() {
-            const messages = [
-                "Beep boop! Your finances are looking stellar!",
-                "Initiating money-saving protocols...",
-                "Warning: Excessive spending detected in the entertainment sector!",
-                "Expense data successfully computed. Well done, human!",
-                "Remember: A credit saved is a credit earned!"
-            ];
-            const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-            robotMessage.textContent = randomMessage;
-        }
-
-        function setBudget() {
-            const budgetInput = document.getElementById('budgetAmount');
-            budget = parseFloat(budgetInput.value);
-            localStorage.setItem('budget', budget);
-            updateTotal();
-            budgetInput.value = '';
-        }
-
-        function updateBudgetStatus(total) {
-            if (budget > 0) {
-                const remaining = budget - total;
-                const percentage = (total / budget) * 100;
-                let message = `Budget: $${budget.toFixed(2)} | Remaining: $${remaining.toFixed(2)} (${percentage.toFixed(2)}% used)`;
-                if (remaining < 0) {
-                    message += " - Over budget!";
-                    budgetStatus.style.color = '#f00';
-                } else {
-                    budgetStatus.style.color = '#0f0';
-                }
-                budgetStatus.textContent = message;
-            } else {
-                budgetStatus.textContent = "No budget set";
-                budgetStatus.style.color = '#0f0';
-            }
-        }
-
-        expenseForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const name = document.getElementById('expenseName').value;
-            const amount = parseFloat(document.getElementById('expenseAmount').value);
-            const category = document.getElementById('expenseCategory').value;
-            const date = document.getElementById('expenseDate').value;
-
-            if (name && amount && category && date) {
-                const expense = { name, amount, category, date };
-                expenses.push(expense);
-                updateExpenseList();
-                updateTotal();
-                updateChart();
-                updateSummary();
-                saveExpenses();
-                generateRobotMessage();
-                expenseForm.reset();
-            }
-        });
-
-        updateExpenseList();
-        updateTotal();
-        updateChart();
-        updateSummary();
-        generateRobotMessage();
     </script>
 </body>
 </html>
