@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Futuristic Expense Tracker v3</title>
+    <title>Futuristic Expense Tracker v4</title>
     <style>
         @keyframes neonFlicker {
             0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
@@ -16,6 +16,10 @@
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
+        }
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
         }
         body {
             font-family: 'Courier New', monospace;
@@ -82,6 +86,8 @@
         }
         #expenseList {
             margin-top: 30px;
+            max-height: 300px;
+            overflow-y: auto;
         }
         .expense-item {
             background-color: rgba(0, 255, 0, 0.1);
@@ -91,20 +97,25 @@
             margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
-            animation: fadeIn 0.5s;
+            animation: slideIn 0.5s;
         }
         .total {
             text-align: right;
             font-size: 1.2em;
             margin-top: 20px;
         }
-        .delete-btn {
-            background-color: #f00;
-            color: #fff;
-            border: none;
-            padding: 5px 10px;
+        .delete-btn, .edit-btn {
+            background-color: transparent;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 3px 8px;
             border-radius: 3px;
             cursor: pointer;
+            margin-left: 5px;
+        }
+        .delete-btn:hover, .edit-btn:hover {
+            background-color: #0f0;
+            color: #000;
         }
         #chart {
             margin-top: 30px;
@@ -119,21 +130,47 @@
             background-color: #0f0;
             margin: 0 2px;
             transition: height 0.3s;
+            position: relative;
+        }
+        .bar::after {
+            content: attr(data-category);
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
         }
         #summary {
             margin-top: 30px;
             display: flex;
             justify-content: space-between;
+            flex-wrap: wrap;
         }
         .summary-item {
             text-align: center;
             flex: 1;
+            min-width: 120px;
+            margin-bottom: 15px;
         }
         #robotMessage {
             margin-top: 20px;
             font-style: italic;
             text-align: center;
             opacity: 0.7;
+        }
+        #budgetInput {
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+        }
+        #budgetInput input {
+            flex: 1;
+            margin-right: 10px;
+        }
+        #budgetStatus {
+            margin-top: 10px;
+            text-align: center;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -165,6 +202,11 @@
             </div>
             <button type="submit">Add Expense</button>
         </form>
+        <div id="budgetInput">
+            <input type="number" id="budgetAmount" placeholder="Enter monthly budget">
+            <button onclick="setBudget()">Set Budget</button>
+        </div>
+        <div id="budgetStatus"></div>
         <div id="expenseList"></div>
         <div class="total">Total: $<span id="totalAmount">0</span></div>
         <div id="chart"></div>
@@ -180,7 +222,9 @@
         const chart = document.getElementById('chart');
         const summary = document.getElementById('summary');
         const robotMessage = document.getElementById('robotMessage');
+        const budgetStatus = document.getElementById('budgetStatus');
         let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+        let budget = parseFloat(localStorage.getItem('budget')) || 0;
 
         function updateExpenseList() {
             expenseList.innerHTML = '';
@@ -189,8 +233,11 @@
                 expenseItem.classList.add('expense-item');
                 expenseItem.innerHTML = `
                     <span>${expense.name} (${expense.category}) - ${expense.date}</span>
-                    <span>$${expense.amount.toFixed(2)}
-                    <button class="delete-btn" onclick="deleteExpense(${index})">Delete</button></span>
+                    <span>
+                        $${expense.amount.toFixed(2)}
+                        <button class="edit-btn" onclick="editExpense(${index})">Edit</button>
+                        <button class="delete-btn" onclick="deleteExpense(${index})">Delete</button>
+                    </span>
                 `;
                 expenseList.appendChild(expenseItem);
             });
@@ -199,9 +246,24 @@
         function updateTotal() {
             const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
             totalAmount.textContent = total.toFixed(2);
+            updateBudgetStatus(total);
         }
 
         function deleteExpense(index) {
+            expenses.splice(index, 1);
+            updateExpenseList();
+            updateTotal();
+            updateChart();
+            updateSummary();
+            saveExpenses();
+        }
+
+        function editExpense(index) {
+            const expense = expenses[index];
+            document.getElementById('expenseName').value = expense.name;
+            document.getElementById('expenseAmount').value = expense.amount;
+            document.getElementById('expenseCategory').value = expense.category;
+            document.getElementById('expenseDate').value = expense.date;
             expenses.splice(index, 1);
             updateExpenseList();
             updateTotal();
@@ -224,6 +286,7 @@
                 bar.classList.add('bar');
                 const height = maxTotal > 0 ? (categoryTotals[index] / maxTotal) * 100 : 0;
                 bar.style.height = `${height}%`;
+                bar.setAttribute('data-category', category);
                 bar.title = `${category}: $${categoryTotals[index].toFixed(2)}`;
                 chart.appendChild(bar);
             });
@@ -259,6 +322,32 @@
             ];
             const randomMessage = messages[Math.floor(Math.random() * messages.length)];
             robotMessage.textContent = randomMessage;
+        }
+
+        function setBudget() {
+            const budgetInput = document.getElementById('budgetAmount');
+            budget = parseFloat(budgetInput.value);
+            localStorage.setItem('budget', budget);
+            updateTotal();
+            budgetInput.value = '';
+        }
+
+        function updateBudgetStatus(total) {
+            if (budget > 0) {
+                const remaining = budget - total;
+                const percentage = (total / budget) * 100;
+                let message = `Budget: $${budget.toFixed(2)} | Remaining: $${remaining.toFixed(2)} (${percentage.toFixed(2)}% used)`;
+                if (remaining < 0) {
+                    message += " - Over budget!";
+                    budgetStatus.style.color = '#f00';
+                } else {
+                    budgetStatus.style.color = '#0f0';
+                }
+                budgetStatus.textContent = message;
+            } else {
+                budgetStatus.textContent = "No budget set";
+                budgetStatus.style.color = '#0f0';
+            }
         }
 
         expenseForm.addEventListener('submit', function(e) {
