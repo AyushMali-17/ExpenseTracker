@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futuristic Expense Tracker v1</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #000;
+            color: #0f0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: rgba(0, 255, 0, 0.1);
+            border: 2px solid #0f0;
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 0 20px #0f0;
+        }
+        h1 {
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #0f0;
+            background-color: #000;
+            color: #0f0;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #0f0;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background-color: #000;
+            color: #0f0;
+            box-shadow: 0 0 10px #0f0;
+        }
+        #expenseList {
+            margin-top: 30px;
+        }
+        .expense-item {
+            background-color: rgba(0, 255, 0, 0.1);
+            border: 1px solid #0f0;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .total {
+            text-align: right;
+            font-size: 1.2em;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Futuristic Expense Tracker</h1>
+        <form id="expenseForm">
+            <div class="form-group">
+                <label for="expenseName">Expense Name:</label>
+                <input type="text" id="expenseName" required>
+            </div>
+            <div class="form-group">
+                <label for="expenseAmount">Amount:</label>
+                <input type="number" id="expenseAmount" required>
+            </div>
+            <button type="submit">Add Expense</button>
+        </form>
+        <div id="expenseList"></div>
+        <div class="total">Total: $<span id="totalAmount">0</span></div>
+    </div>
+
+    <script>
+        const expenseForm = document.getElementById('expenseForm');
+        const expenseList = document.getElementById('expenseList');
+        const totalAmount = document.getElementById('totalAmount');
+        let expenses = [];
+
+        expenseForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('expenseName').value;
+            const amount = parseFloat(document.getElementById('expenseAmount').value);
+
+            if (name && amount) {
+                const expense = { name, amount };
+                expenses.push(expense);
+                updateExpenseList();
+                updateTotal();
+                expenseForm.reset();
+            }
+        });
+
+        function updateExpenseList() {
+            expenseList.innerHTML = '';
+            expenses.forEach((expense, index) => {
+                const expenseItem = document.createElement('div');
+                expenseItem.classList.add('expense-item');
+                expenseItem.innerHTML = `
+                    <span>${expense.name}</span>
+                    <span>$${expense.amount.toFixed(2)}</span>
+                `;
+                expenseList.appendChild(expenseItem);
+            });
+        }
+
+        function updateTotal() {
+            const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+            totalAmount.textContent = total.toFixed(2);
+        }
+    </script>
+</body>
+</html>
