@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Futuristic Expense Tracker v5</title>
+    <title> Expense Tracker </title>
     <style>
         @keyframes neonFlicker {
             0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
@@ -35,9 +35,15 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-image: 
-                radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(0, 255, 0, 0.1) 0%, transparent 30%);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .dark-mode {
+            background-color: #000;
+            color: #0f0;
+        }
+        .light-mode {
+            background-color: #fff;
+            color: #000;
         }
         .container {
             background-color: rgba(0, 20, 0, 0.8);
@@ -211,9 +217,39 @@
             font-weight: bold;
             color: #000;
         }
+        #currencySelector {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #currencySelector select {
+            width: 100%;
+        }
+        #sortOptions {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+        #sortOptions select {
+            width: 48%;
+        }
+        #darkModeToggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #0f0;
+            color: #000;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
     </style>
 </head>
-<body>
+<body class="dark-mode">
+    <button id="darkModeToggle" onclick="toggleDarkMode()">Light Mode</button>
     <div class="container">
         <h1>Futuristic Expense Tracker</h1>
         <form id="expenseForm">
@@ -256,34 +292,40 @@
                 <option value="other">Other</option>
             </select>
             <select id="dateFilter">
-                <option value="all">All Time</option>
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="thisWeek">This Week</option>
                 <option value="thisMonth">This Month</option>
-                <option value="lastMonth">Last Month</option>
-                <option value="thisYear">This Year</option>
-                <option value="lastYear">Last Year</option>
             </select>
         </div>
+        <div id="sortOptions">
+            <select id="sortAmount">
+                <option value="asc">Amount: Low to High</option>
+                <option value="desc">Amount: High to Low</option>
+            </select>
+            <select id="sortDate">
+                <option value="asc">Date: Oldest First</option>
+                <option value="desc">Date: Newest First</option>
+            </select>
+        </div>
+        <button id="exportBtn" onclick="exportData()">Export Data</button>
         <div id="expenseList"></div>
-        <div class="total">Total: $<span id="totalAmount">0.00</span></div>
+        <div class="total">Total: <span id="totalAmount">0</span></div>
         <div id="chart"></div>
         <div id="summary"></div>
-        <div id="robotMessage"></div>
-        <button id="exportBtn" onclick="exportData()">Export Data</button>
         <div id="loader"></div>
         <div id="robotAvatar">🤖</div>
+        <div id="robotMessage">Loading data...</div>
     </div>
     <script>
         let expenses = [];
-        let budget = 0;
-        let totalExpenses = 0;
+        let totalExpense = 0;
+        let monthlyBudget = 0;
 
         document.getElementById('expenseForm').addEventListener('submit', function(event) {
             event.preventDefault();
             addExpense();
         });
-
-        document.getElementById('categoryFilter').addEventListener('change', filterExpenses);
-        document.getElementById('dateFilter').addEventListener('change', filterExpenses);
 
         function addExpense() {
             const name = document.getElementById('expenseName').value;
@@ -293,107 +335,52 @@
 
             const expense = { name, amount, category, date };
             expenses.push(expense);
-            updateExpenses();
-            document.getElementById('expenseForm').reset();
-        }
+            totalExpense += amount;
 
-        function updateExpenses() {
-            filterExpenses();
-            updateTotal();
+            updateExpenseList();
+            updateTotalAmount();
             updateChart();
             updateSummary();
             updateBudgetStatus();
+            clearForm();
         }
 
-        function filterExpenses() {
-            const categoryFilter = document.getElementById('categoryFilter').value;
-            const dateFilter = document.getElementById('dateFilter').value;
-            const filteredExpenses = expenses.filter(expense => {
-                const matchesCategory = categoryFilter === 'all' || expense.category === categoryFilter;
-                const matchesDate = dateFilter === 'all' || matchesDateFilter(expense.date, dateFilter);
-                return matchesCategory && matchesDate;
-            });
-
-            renderExpenses(filteredExpenses);
-        }
-
-        function matchesDateFilter(date, filter) {
-            const expenseDate = new Date(date);
-            const now = new Date();
-            const thisMonth = now.getMonth();
-            const thisYear = now.getFullYear();
-            const lastMonth = new Date(thisYear, thisMonth - 1, 1);
-            const lastYear = new Date(thisYear - 1, 0, 1);
-
-            switch (filter) {
-                case 'thisMonth':
-                    return expenseDate.getMonth() === thisMonth && expenseDate.getFullYear() === thisYear;
-                case 'lastMonth':
-                    return expenseDate.getMonth() === lastMonth.getMonth() && expenseDate.getFullYear() === lastMonth.getFullYear();
-                case 'thisYear':
-                    return expenseDate.getFullYear() === thisYear;
-                case 'lastYear':
-                    return expenseDate.getFullYear() === lastYear.getFullYear();
-                default:
-                    return true;
-            }
-        }
-
-        function renderExpenses(expenses) {
+        function updateExpenseList() {
             const expenseList = document.getElementById('expenseList');
             expenseList.innerHTML = '';
-            expenses.forEach((expense, index) => {
+
+            expenses.forEach(expense => {
                 const expenseItem = document.createElement('div');
                 expenseItem.className = 'expense-item';
                 expenseItem.innerHTML = `
-                    <span>${expense.name}</span>
-                    <span>$${expense.amount.toFixed(2)}</span>
-                    <span>${expense.category}</span>
-                    <span>${expense.date}</span>
-                    <button class="edit-btn" onclick="editExpense(${index})">Edit</button>
-                    <button class="delete-btn" onclick="deleteExpense(${index})">Delete</button>
+                    <span>${expense.name} - ${expense.category} - $${expense.amount.toFixed(2)} - ${expense.date}</span>
+                    <div>
+                        <button class="edit-btn" onclick="editExpense('${expense.name}', ${expense.amount}, '${expense.category}', '${expense.date}')">Edit</button>
+                        <button class="delete-btn" onclick="deleteExpense('${expense.name}', ${expense.amount})">Delete</button>
+                    </div>
                 `;
                 expenseList.appendChild(expenseItem);
             });
         }
 
-        function updateTotal() {
-            totalExpenses = expenses.reduce((total, expense) => total + expense.amount, 0);
-            document.getElementById('totalAmount').textContent = totalExpenses.toFixed(2);
-        }
-
-        function setBudget() {
-            budget = parseFloat(document.getElementById('budgetAmount').value);
-            updateBudgetStatus();
-        }
-
-        function updateBudgetStatus() {
-            const budgetStatus = document.getElementById('budgetStatus');
-            if (budget > 0) {
-                budgetStatus.textContent = `Remaining Budget: $${(budget - totalExpenses).toFixed(2)}`;
-                budgetStatus.style.color = (budget - totalExpenses) >= 0 ? '#0f0' : '#f00';
-            } else {
-                budgetStatus.textContent = '';
-            }
+        function updateTotalAmount() {
+            document.getElementById('totalAmount').textContent = totalExpense.toFixed(2);
         }
 
         function updateChart() {
             const chart = document.getElementById('chart');
             chart.innerHTML = '';
+
             const categories = ['food', 'transport', 'entertainment', 'bills', 'other'];
             const categoryTotals = categories.map(category => {
-                return expenses
-                    .filter(expense => expense.category === category)
-                    .reduce((total, expense) => total + expense.amount, 0);
+                return expenses.filter(exp => exp.category === category).reduce((sum, exp) => sum + exp.amount, 0);
             });
-
-            const maxAmount = Math.max(...categoryTotals);
 
             categoryTotals.forEach((total, index) => {
                 const bar = document.createElement('div');
                 bar.className = 'bar';
-                bar.style.height = `${(total / maxAmount) * 100}%`;
-                bar.dataset.category = categories[index];
+                bar.style.height = `${total / totalExpense * 100}%`;
+                bar.setAttribute('data-category', categories[index]);
                 chart.appendChild(bar);
             });
         }
@@ -401,43 +388,152 @@
         function updateSummary() {
             const summary = document.getElementById('summary');
             summary.innerHTML = '';
+
             const categories = ['food', 'transport', 'entertainment', 'bills', 'other'];
             categories.forEach(category => {
-                const total = expenses
-                    .filter(expense => expense.category === category)
-                    .reduce((sum, expense) => sum + expense.amount, 0);
+                const total = expenses.filter(exp => exp.category === category).reduce((sum, exp) => sum + exp.amount, 0);
                 const summaryItem = document.createElement('div');
                 summaryItem.className = 'summary-item';
-                summaryItem.innerHTML = `
-                    <h3>${category}</h3>
-                    <p>$${total.toFixed(2)}</p>
-                `;
+                summaryItem.innerHTML = `<strong>${category}</strong><br>$${total.toFixed(2)}`;
                 summary.appendChild(summaryItem);
             });
         }
 
-        function deleteExpense(index) {
-            expenses.splice(index, 1);
-            updateExpenses();
+        function clearForm() {
+            document.getElementById('expenseName').value = '';
+            document.getElementById('expenseAmount').value = '';
+            document.getElementById('expenseCategory').value = 'food';
+            document.getElementById('expenseDate').value = '';
         }
 
-        function editExpense(index) {
-            const expense = expenses[index];
-            document.getElementById('expenseName').value = expense.name;
-            document.getElementById('expenseAmount').value = expense.amount;
-            document.getElementById('expenseCategory').value = expense.category;
-            document.getElementById('expenseDate').value = expense.date;
-            deleteExpense(index);
+        function setBudget() {
+            monthlyBudget = parseFloat(document.getElementById('budgetAmount').value);
+            updateBudgetStatus();
+        }
+
+        function updateBudgetStatus() {
+            const budgetStatus = document.getElementById('budgetStatus');
+            if (totalExpense > monthlyBudget) {
+                budgetStatus.textContent = 'Budget exceeded!';
+                budgetStatus.style.color = 'red';
+            } else {
+                budgetStatus.textContent = 'Within budget';
+                budgetStatus.style.color = 'green';
+            }
+        }
+
+        function editExpense(name, amount, category, date) {
+            document.getElementById('expenseName').value = name;
+            document.getElementById('expenseAmount').value = amount;
+            document.getElementById('expenseCategory').value = category;
+            document.getElementById('expenseDate').value = date;
+            deleteExpense(name, amount);
+        }
+
+        function deleteExpense(name, amount) {
+            expenses = expenses.filter(exp => exp.name !== name || exp.amount !== amount);
+            totalExpense -= amount;
+            updateExpenseList();
+            updateTotalAmount();
+            updateChart();
+            updateSummary();
+            updateBudgetStatus();
         }
 
         function exportData() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(expenses));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "expenses.json");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
+            const csvContent = 'data:text/csv;charset=utf-8,'
+                + 'Name,Amount,Category,Date\n'
+                + expenses.map(exp => `${exp.name},${exp.amount},${exp.category},${exp.date}`).join('\n');
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', 'expenses.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function toggleDarkMode() {
+            const body = document.body;
+            const toggleButton = document.getElementById('darkModeToggle');
+            body.classList.toggle('dark-mode');
+            body.classList.toggle('light-mode');
+            if (body.classList.contains('light-mode')) {
+                toggleButton.textContent = 'Dark Mode';
+            } else {
+                toggleButton.textContent = 'Light Mode';
+            }
+        }
+
+        document.getElementById('categoryFilter').addEventListener('change', filterExpenses);
+        document.getElementById('dateFilter').addEventListener('change', filterExpenses);
+        document.getElementById('sortAmount').addEventListener('change', sortExpenses);
+        document.getElementById('sortDate').addEventListener('change', sortExpenses);
+
+        function filterExpenses() {
+            const category = document.getElementById('categoryFilter').value;
+            const date = document.getElementById('dateFilter').value;
+
+            let filteredExpenses = [...expenses];
+
+            if (category !== 'all') {
+                filteredExpenses = filteredExpenses.filter(exp => exp.category === category);
+            }
+
+            if (date !== 'all') {
+                const now = new Date();
+                if (date === 'today') {
+                    filteredExpenses = filteredExpenses.filter(exp => new Date(exp.date).toDateString() === now.toDateString());
+                } else if (date === 'thisWeek') {
+                    const weekAgo = new Date(now.setDate(now.getDate() - 7));
+                    filteredExpenses = filteredExpenses.filter(exp => new Date(exp.date) >= weekAgo);
+                } else if (date === 'thisMonth') {
+                    const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
+                    filteredExpenses = filteredExpenses.filter(exp => new Date(exp.date) >= monthAgo);
+                }
+            }
+
+            displayFilteredExpenses(filteredExpenses);
+        }
+
+        function displayFilteredExpenses(filteredExpenses) {
+            const expenseList = document.getElementById('expenseList');
+            expenseList.innerHTML = '';
+
+            filteredExpenses.forEach(expense => {
+                const expenseItem = document.createElement('div');
+                expenseItem.className = 'expense-item';
+                expenseItem.innerHTML = `
+                    <span>${expense.name} - ${expense.category} - $${expense.amount.toFixed(2)} - ${expense.date}</span>
+                    <div>
+                        <button class="edit-btn" onclick="editExpense('${expense.name}', ${expense.amount}, '${expense.category}', '${expense.date}')">Edit</button>
+                        <button class="delete-btn" onclick="deleteExpense('${expense.name}', ${expense.amount})">Delete</button>
+                    </div>
+                `;
+                expenseList.appendChild(expenseItem);
+            });
+        }
+
+        function sortExpenses() {
+            const sortAmount = document.getElementById('sortAmount').value;
+            const sortDate = document.getElementById('sortDate').value;
+
+            let sortedExpenses = [...expenses];
+
+            if (sortAmount === 'asc') {
+                sortedExpenses.sort((a, b) => a.amount - b.amount);
+            } else {
+                sortedExpenses.sort((a, b) => b.amount - a.amount);
+            }
+
+            if (sortDate === 'asc') {
+                sortedExpenses.sort((a, b) => new Date(a.date) - new Date(b.date));
+            } else {
+                sortedExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+            }
+
+            displayFilteredExpenses(sortedExpenses);
         }
     </script>
 </body>
